@@ -10,14 +10,18 @@
 using namespace std;
 using filesystem::path;
 
+// Оператор пользовательского литерала для создания объекта path из строки
 path operator""_p(const char* data, std::size_t sz) {
     return path(data, data + sz);
 }
 
+// Проверяет, находится ли файл target_file в той же директории, что и in_file
 bool IsFileInDir(const path& in_file, const path& target_file) {
     return filesystem::exists((filesystem::absolute(in_file)).parent_path() / target_file);
 }
 
+// Ищет файл target_file в заданных include-директориях и возвращает индекс директории, где он найден
+// Если файл не найден, возвращает -1
 int FindFileInIncludeDirectories(const path& target_file, const vector<path>& include_directories) {
     for (size_t i = 0; i < include_directories.size(); ++i) {
         if (filesystem::exists((include_directories[i] / target_file))) {
@@ -28,7 +32,7 @@ int FindFileInIncludeDirectories(const path& target_file, const vector<path>& in
     return -1;
 }
 
-// напишите эту функцию
+// Обрабатывает входной файл, разворачивая директивы #include и записывая результат в выходной файл
 bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories) {
     ifstream in(in_file);
     if (!in) {
@@ -37,16 +41,18 @@ bool Preprocess(const path& in_file, const path& out_file, const vector<path>& i
 
     ofstream out(out_file, ios_base::app);
 
+    // Регулярные выражения для поиска директив include
     static regex include_rel(R"/(\s*#\s*include\s*"([^"]*)"\s*)/");
     static regex include_abs(R"/(\s*#\s*include\s*<([^>]*)>\s*)/");
-    smatch m;
+    smatch match;
 
     size_t line_num = 1;
     string line;
 
     while (getline(in, line)) {
-        if (regex_match(line, m, include_rel)) {
-            path target_file = m[1].str();
+        if (regex_match(line, match, include_rel)) {
+            // Обрабатываем относительный include
+            path target_file = match[1].str();
             if (IsFileInDir(in_file, target_file)) {
                 if (!Preprocess((filesystem::absolute(in_file)).parent_path() / target_file, filesystem::absolute(out_file), include_directories)) {
                     return false;
@@ -62,8 +68,9 @@ bool Preprocess(const path& in_file, const path& out_file, const vector<path>& i
                     return false;
                 }
             }
-        } else if (regex_match(line, m, include_abs)) {
-            path target_file = m[1].str(); 
+        } else if (regex_match(line, match, include_abs)) {
+            // Обрабатываем абсолютный include
+            path target_file = match[1].str(); 
             int index = FindFileInIncludeDirectories(target_file, include_directories);
             if (index != -1) {
                 if (!Preprocess(include_directories[index] / target_file, filesystem::absolute(out_file), include_directories)) {
@@ -74,6 +81,7 @@ bool Preprocess(const path& in_file, const path& out_file, const vector<path>& i
                 return false;
             }
         } else {
+            // Записываем строку без изменений
             out << line << endl;
         }
 
@@ -86,6 +94,8 @@ bool Preprocess(const path& in_file, const path& out_file, const vector<path>& i
     return true;
 }
 
+
+// Читает содержимое файла в строку
 string GetFileContents(string file) {
     ifstream stream(file);
 
